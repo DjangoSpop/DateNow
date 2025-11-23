@@ -13,6 +13,7 @@ import EnhancedOnboardingPage from './pages/EnhancedOnboardingPage';
 import DashboardPage from './pages/DashboardPage';
 import MatchesPage from './pages/MatchesPage';
 import AIConversationPage from './pages/AIConversationPage';
+import RealTimeConversationPage from './pages/RealTimeConversationPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -65,6 +66,14 @@ function App() {
           element={
             <ProtectedRoute>
               <AIConversationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/live-conversation/:matchId"
+          element={
+            <ProtectedRoute>
+              <RealTimeConversationPage />
             </ProtectedRoute>
           }
         />

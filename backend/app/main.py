@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database import init_db
-from app.routes import auth, users, matches
+from app.routes import auth, users, matches, websocket
 
 
 @asynccontextmanager
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(matches.router, prefix=settings.API_V1_STR)
+app.include_router(websocket.router)  # WebSocket routes (no prefix needed)
 
 
 @app.get("/")
