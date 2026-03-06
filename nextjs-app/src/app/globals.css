@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-50: #e6f4ff;
+  --primary-100: #bae0ff;
+  --primary-500: #1677ff;
+  --primary-600: #0958d9;
+  --accent-50: #fff0f6;
+  --accent-400: #f759ab;
+  --accent-500: #eb2f96;
+  --calm-50: #f0f9ff;
+  --calm-100: #e0f2fe;
+}
+
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
