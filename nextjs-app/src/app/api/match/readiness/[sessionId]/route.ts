@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { geminiService } from '@/services/geminiService';
 
 /**
  * Readiness Assessment Handler
@@ -10,34 +11,29 @@ export async function GET(
 ) {
   try {
     const sessionId = params.sessionId;
+    const { searchParams } = new URL(request.url);
+    const historyParam = searchParams.get('history');
 
-    if (!sessionId) {
+    if (!sessionId || !historyParam) {
       return NextResponse.json(
-        { error: 'Session ID is required' },
+        { error: 'Session ID and History are required' },
         { status: 400 }
       );
     }
 
-    // Placeholder for database retrieval and analysis
-    // In a real implementation, you would:
-    // 1. Fetch the complete message history for this session
-    // 2. Pass the history to Gemini for readiness analysis
-    // 3. Calculate weighted scores based on factors in PLAN_SAFETY_VIRALITY.md
-    // 4. Return the structured result
+    const history = JSON.parse(historyParam);
+
+    // Call actual Gemini Readiness Engine
+    const result = await geminiService.assessReadiness(history);
 
     return NextResponse.json({
       sessionId,
-      status: 'ready_for_direct_chat',
-      score: 82,
+      status: result.recommendation,
+      score: result.score,
       confidence: 0.9,
-      recommendation: 'unlock_direct',
-      compatibilityDimensions: {
-        values: 85,
-        communication: 78,
-        lifestyle: 72,
-        emotional: 88,
-      },
-      moderatorNotes: 'Both users demonstrate high levels of mutual respect and clear, honest communication. Their values around family and career are well-aligned.',
+      recommendation: result.recommendation,
+      compatibilityDimensions: result.dimensions,
+      moderatorNotes: result.moderator_notes,
       suggestedNextSteps: [
         'Share a recent favorite memory.',
         'Discuss your ideal weekend routine.',

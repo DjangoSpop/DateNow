@@ -1,0 +1,162 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  OTHER
+}
+
+enum RelationshipGoal {
+  SERIOUS
+  CASUAL
+  FRIENDSHIP
+  UNSURE
+}
+
+enum MatchStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  AI_MEDIATION
+  DIRECT_CHAT
+  ENDED
+}
+
+enum SessionStage {
+  CONSENT
+  ICEBREAKERS
+  VALUES
+  LIFESTYLE
+  REFLECTION
+  READINESS
+  OUTCOME
+}
+
+model User {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  hashedPassword  String
+  isVerified      Boolean        @default(false)
+  profile         UserProfile?
+  psychological   PsychologicalProfile?
+  matchesInitiated Match[]       @relation("User1")
+  matchesReceived  Match[]       @relation("User2")
+  messages        Message[]
+  shareCards      ShareCard[]
+  invites         InviteTracking[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model UserProfile {
+  id                String           @id @default(uuid())
+  userId            String           @unique
+  user              User             @relation(fields: [userId], references: [id])
+  firstName         String
+  lastName          String?
+  dateOfBirth       DateTime
+  gender            Gender
+  bio               String           @db.Text
+  city              String
+  country           String
+  photos            Json             // Array of strings
+  relationshipGoal  RelationshipGoal
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model PsychologicalProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id])
+  openness            Float
+  conscientiousness   Float
+  extraversion        Float
+  agreeableness       Float
+  neuroticism         Float
+  familyOrientation   Float
+  careerAmbition      Float
+  communicationStyle  String
+  attachmentStyle     String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Match {
+  id                  String           @id @default(uuid())
+  user1Id             String
+  user2Id             String
+  user1               User             @relation("User1", fields: [user1Id], references: [id])
+  user2               User             @relation("User2", fields: [user2Id], references: [id])
+  status              MatchStatus      @default(PENDING)
+  overallCompatibility Float
+  sessions            ModeratedSession[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+}
+
+model ModeratedSession {
+  id              String         @id @default(uuid())
+  matchId         String
+  match           Match          @relation(fields: [matchId], references: [id])
+  stage           SessionStage   @default(CONSENT)
+  questionsAsked  Int            @default(0)
+  maxQuestions    Int            @default(10)
+  messages        Message[]
+  readinessResult ReadinessResult?
+  startedAt       DateTime?
+  lastActivity    DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+}
+
+model Message {
+  id              String           @id @default(uuid())
+  sessionId       String
+  session         ModeratedSession @relation(fields: [sessionId], references: [id])
+  senderId        String?
+  sender          User?            @relation(fields: [senderId], references: [id])
+  type            String           // moderator, user, system
+  content         String           @db.Text
+  createdAt       DateTime         @default(now())
+}
+
+model ReadinessResult {
+  id                String           @id @default(uuid())
+  sessionId         String           @unique
+  session           ModeratedSession @relation(fields: [sessionId], references: [id])
+  score             Float
+  recommendation    String
+  moderatorNotes    String           @db.Text
+  dimensions        Json             // { values: 80, communication: 70, ... }
+  createdAt         DateTime         @default(now())
+}
+
+model ShareCard {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // compatibility, personality, journey
+  imageUrl  String
+  createdAt DateTime @default(now())
+}
+
+model InviteTracking {
+  id           String   @id @default(uuid())
+  inviterId    String
+  inviter      User     @relation(fields: [inviterId], references: [id])
+  inviteeEmail String
+  status       String   // pending, joined, matched
+  rewardStatus String?
+  createdAt    DateTime @default(now())
+}

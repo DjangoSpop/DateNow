@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { geminiService } from '@/services/geminiService';
 
 /**
  * AI Moderation Message Handler
@@ -7,7 +8,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { sessionId, userId, content } = body;
+    const { sessionId, userId, content, history, user1Name, user2Name, stage } = body;
 
     if (!sessionId || !userId || !content) {
       return NextResponse.json(
@@ -16,22 +17,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // Placeholder for Gemini API integration
-    // In a real implementation, you would:
-    // 1. Fetch the session context from the database
-    // 2. Build the prompt using the strategy in GEMINI_PROMPT.md
-    // 3. Call Gemini via @google/generative-ai
-    // 4. Update the session state in the database
-    // 5. Return the structured response
+    // Call actual Gemini Service
+    const aiResponse = await geminiService.getModeratorResponse(
+      user1Name || 'User1',
+      user2Name || 'User2',
+      stage || 'icebreakers',
+      content,
+      history || []
+    );
 
     return NextResponse.json({
       messageId: `msg_${Date.now()}`,
-      moderatorMessage: 'Thank you for sharing that. It shows a lot of emotional depth.',
-      questionTo: 'Your Match',
-      nextQuestion: 'How does that perspective shape your daily life?',
-      detectedSentiment: 'warm',
-      stage: 'values',
-      safetyFlag: false,
+      moderatorMessage: aiResponse.moderator_message,
+      questionTo: aiResponse.question_to,
+      detectedSentiment: aiResponse.detected_sentiment,
+      stage: aiResponse.stage_recommendation,
+      safetyFlag: aiResponse.safety_flag,
     });
   } catch (error) {
     console.error('Moderation API Error:', error);
