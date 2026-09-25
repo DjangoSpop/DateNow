@@ -1,3 +1,5 @@
+# Runtime dependencies (pinned). Dev/test tools live in requirements-dev.txt.
+
 # FastAPI and ASGI server
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
@@ -11,12 +13,12 @@ asyncpg==0.29.0
 
 # Redis
 redis==5.0.1
-aioredis==2.0.1
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-bcrypt==4.1.1
+# 4.0.1: newest bcrypt that passlib 1.7.4 reads without the "__about__" AttributeError warning
+bcrypt==4.0.1
 pydantic[email]==2.5.0
 python-dotenv==1.0.0
 
@@ -28,15 +30,5 @@ openai==1.3.5
 websockets==12.0
 
 # Utilities
-httpx==0.25.2
 pydantic-settings==2.1.0
 python-dateutil==2.8.2
-
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-httpx==0.25.2
-
-# CORS
-fastapi-cors==0.0.6

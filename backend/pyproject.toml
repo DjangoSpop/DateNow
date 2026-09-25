@@ -1,0 +1,23 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+# Minimal rule set: pyflakes + pycodestyle errors/warnings (no import sorting / formatting rules).
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Legacy files outside Sprint 1 scope; intentionally not reformatted.
+"app/routes/matches.py" = ["F401", "E712"]
+"app/websocket_manager.py" = ["F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    # Third-party deprecations we cannot fix by pinning in Sprint 1.
+    "ignore::DeprecationWarning:jose.*",
+    "ignore::DeprecationWarning:passlib.*",
+]

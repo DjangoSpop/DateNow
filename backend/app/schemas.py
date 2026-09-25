@@ -1,9 +1,14 @@
 """
 Pydantic schemas for request/response validation
 """
-from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+import re
+from datetime import date, datetime, timezone
+from typing import Annotated, Any, Dict, List, Optional
+
+from pydantic import (
+    BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator,
+)
+
 from app.models import (
     Gender, RelationshipGoal, MatchStatus,
     AISessionStatus, MessageType
@@ -12,142 +17,234 @@ from app.models import (
 
 # Authentication Schemas
 class UserRegister(BaseModel):
+    """Extra fields (e.g. legacy first_name/last_name) are ignored."""
     email: EmailStr
-    password: str = Field(..., min_length=8)
-    first_name: str = Field(..., min_length=1, max_length=50)
-    last_name: Optional[str] = Field(None, max_length=50)
+    password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v: Any) -> Any:
+        return v.strip().lower() if isinstance(v, str) else v
 
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=1, max_length=128)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v: Any) -> Any:
+        return v.strip().lower() if isinstance(v, str) else v
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(..., min_length=1)
 
 
 class Token(BaseModel):
+    """TokenPair in the API contract."""
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    expires_in: int
 
 
 class TokenData(BaseModel):
     user_id: Optional[int] = None
 
 
-# User Profile Schemas
-class UserProfileCreate(BaseModel):
-    first_name: str
-    last_name: Optional[str] = None
-    date_of_birth: datetime
-    gender: Gender
-    bio: Optional[str] = None
-    city: Optional[str] = None
-    country: Optional[str] = None
-    height_cm: Optional[int] = None
-    looking_for_gender: List[Gender]
-    age_preference_min: int = Field(..., ge=18, le=100)
-    age_preference_max: int = Field(..., ge=18, le=100)
-    distance_preference_km: int = Field(50, ge=1, le=500)
-    relationship_goal: RelationshipGoal
+# Current user
+class OnboardingStatus(BaseModel):
+    profile_complete: bool
+    questionnaire_complete: bool
+    questionnaire_answered: int
+    questionnaire_total: int
+    questionnaire_version: Optional[str]
+    complete: bool
 
 
-class UserProfileUpdate(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    bio: Optional[str] = None
-    city: Optional[str] = None
-    country: Optional[str] = None
-    height_cm: Optional[int] = None
-    looking_for_gender: Optional[List[Gender]] = None
-    age_preference_min: Optional[int] = None
-    age_preference_max: Optional[int] = None
-    distance_preference_km: Optional[int] = None
-    relationship_goal: Optional[RelationshipGoal] = None
-
-
-class UserProfileResponse(BaseModel):
+class UserMeResponse(BaseModel):
     id: int
-    user_id: int
+    email: str
+    is_verified: bool
+    created_at: Optional[datetime]
+    onboarding: OnboardingStatus
+
+
+# User Profile Schemas
+MIN_USER_AGE = 18
+MAX_USER_AGE = 120
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+FirstName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
+LastName = Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)]
+Bio = Annotated[str, StringConstraints(max_length=500)]
+Place = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+AgePref = Annotated[int, Field(ge=18, le=100)]
+GenderList = Annotated[List[Gender], Field(min_length=1, max_length=4)]
+
+
+def utc_today() -> date:
+    return datetime.now(timezone.utc).date()
+
+
+def age_on(dob: date, today: date) -> int:
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+
+class _ProfileFields(BaseModel):
+    """Shared validation for ProfileCreate / ProfileUpdate. Unknown fields are rejected."""
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("date_of_birth", mode="before", check_fields=False)
+    @classmethod
+    def date_format(cls, v: Any) -> Any:
+        if v is None or isinstance(v, date) and not isinstance(v, datetime):
+            return v
+        if not isinstance(v, str) or not _DATE_RE.match(v):
+            raise ValueError("must be a date in YYYY-MM-DD format")
+        return v
+
+    @field_validator("date_of_birth", check_fields=False)
+    @classmethod
+    def date_rules(cls, v: Optional[date]) -> Optional[date]:
+        if v is None:
+            return v
+        today = utc_today()
+        if v > today:
+            raise ValueError("must not be in the future")
+        age = age_on(v, today)
+        if age < MIN_USER_AGE:
+            raise ValueError(f"you must be at least {MIN_USER_AGE} years old")
+        if age > MAX_USER_AGE:
+            raise ValueError(f"age must be at most {MAX_USER_AGE}")
+        return v
+
+    @field_validator("looking_for_gender", check_fields=False)
+    @classmethod
+    def unique_genders(cls, v: Optional[List[Gender]]) -> Optional[List[Gender]]:
+        if v is not None and len(set(v)) != len(v):
+            raise ValueError("values must be unique")
+        return v
+
+
+class ProfileCreate(_ProfileFields):
+    first_name: FirstName
+    last_name: Optional[LastName] = None
+    date_of_birth: date
+    gender: Gender
+    looking_for_gender: GenderList
+    age_preference_min: AgePref
+    age_preference_max: AgePref
+    relationship_goal: RelationshipGoal
+    bio: Optional[Bio] = None
+    city: Optional[Place] = None
+    country: Optional[Place] = None
+
+
+# Fields that may not be explicitly set to null in a PATCH.
+PROFILE_REQUIRED_FIELDS = (
+    "first_name", "date_of_birth", "gender", "looking_for_gender",
+    "age_preference_min", "age_preference_max", "relationship_goal",
+)
+
+
+class ProfileUpdate(_ProfileFields):
+    first_name: Optional[FirstName] = None
+    last_name: Optional[LastName] = None
+    date_of_birth: Optional[date] = None
+    gender: Optional[Gender] = None
+    looking_for_gender: Optional[GenderList] = None
+    age_preference_min: Optional[AgePref] = None
+    age_preference_max: Optional[AgePref] = None
+    relationship_goal: Optional[RelationshipGoal] = None
+    bio: Optional[Bio] = None
+    city: Optional[Place] = None
+    country: Optional[Place] = None
+
+    @field_validator(*PROFILE_REQUIRED_FIELDS)
+    @classmethod
+    def not_null(cls, v: Any) -> Any:
+        # Only runs for values actually supplied (defaults are not validated).
+        if v is None:
+            raise ValueError("may not be null")
+        return v
+
+
+class ProfileResponse(BaseModel):
     first_name: str
     last_name: Optional[str]
-    date_of_birth: datetime
+    date_of_birth: date
+    age: int
     gender: Gender
-    bio: Optional[str]
-    city: Optional[str]
-    country: Optional[str]
-    height_cm: Optional[int]
     looking_for_gender: List[Gender]
     age_preference_min: int
     age_preference_max: int
-    distance_preference_km: int
     relationship_goal: RelationshipGoal
-    profile_photo_url: Optional[str]
-    photos: Optional[List[str]]
-    is_profile_complete: bool
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
+    bio: Optional[str]
+    city: Optional[str]
+    country: Optional[str]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
 
-# Psychological Profile Schemas
-class PsychologicalProfileCreate(BaseModel):
-    # Big Five
-    openness: float = Field(..., ge=0, le=100)
-    conscientiousness: float = Field(..., ge=0, le=100)
-    extraversion: float = Field(..., ge=0, le=100)
-    agreeableness: float = Field(..., ge=0, le=100)
-    neuroticism: float = Field(..., ge=0, le=100)
+# Psychological Profile Schemas (read-only; scores are computed server-side)
+class BigFiveScores(BaseModel):
+    openness: Optional[float]
+    conscientiousness: Optional[float]
+    extraversion: Optional[float]
+    agreeableness: Optional[float]
+    neuroticism: Optional[float]
 
-    # Values
-    family_orientation: float = Field(..., ge=0, le=100)
-    career_ambition: float = Field(..., ge=0, le=100)
-    adventure_seeking: float = Field(..., ge=0, le=100)
-    social_consciousness: float = Field(..., ge=0, le=100)
-    spiritual_religious: float = Field(..., ge=0, le=100)
 
-    # Communication
-    communication_style: str
-    conflict_resolution: str
+class ValuesScores(BaseModel):
+    family_orientation: Optional[float]
+    career_ambition: Optional[float]
+    adventure_seeking: Optional[float]
+    social_consciousness: Optional[float]
+    spiritual_religious: Optional[float]
 
-    # Love Languages
-    love_language_words: float = Field(..., ge=0, le=100)
-    love_language_acts: float = Field(..., ge=0, le=100)
-    love_language_gifts: float = Field(..., ge=0, le=100)
-    love_language_time: float = Field(..., ge=0, le=100)
-    love_language_touch: float = Field(..., ge=0, le=100)
 
-    # Attachment
-    attachment_style: str
-
-    questionnaire_responses: Optional[Dict[str, Any]] = None
+class LoveLanguageScores(BaseModel):
+    words: Optional[float]
+    acts: Optional[float]
+    gifts: Optional[float]
+    time: Optional[float]
+    touch: Optional[float]
 
 
 class PsychologicalProfileResponse(BaseModel):
-    id: int
-    user_id: int
-    openness: float
-    conscientiousness: float
-    extraversion: float
-    agreeableness: float
-    neuroticism: float
-    family_orientation: float
-    career_ambition: float
-    adventure_seeking: float
-    social_consciousness: float
-    spiritual_religious: float
-    communication_style: str
-    conflict_resolution: str
-    love_language_words: float
-    love_language_acts: float
-    love_language_gifts: float
-    love_language_time: float
-    love_language_touch: float
-    attachment_style: str
-    ai_insights: Optional[str]
-    created_at: datetime
+    questionnaire_version: Optional[str]
+    scored_at: Optional[datetime]
+    big_five: BigFiveScores
+    values: ValuesScores
+    love_languages: LoveLanguageScores
+    communication_style: Optional[str]
+    conflict_resolution: Optional[str]
+    attachment_style: Optional[str]
 
-    class Config:
-        from_attributes = True
+    @classmethod
+    def from_model(cls, p: Any) -> "PsychologicalProfileResponse":
+        return cls(
+            questionnaire_version=p.questionnaire_version,
+            scored_at=p.scored_at,
+            big_five=BigFiveScores(
+                openness=p.openness, conscientiousness=p.conscientiousness, extraversion=p.extraversion,
+                agreeableness=p.agreeableness, neuroticism=p.neuroticism,
+            ),
+            values=ValuesScores(
+                family_orientation=p.family_orientation, career_ambition=p.career_ambition,
+                adventure_seeking=p.adventure_seeking, social_consciousness=p.social_consciousness,
+                spiritual_religious=p.spiritual_religious,
+            ),
+            love_languages=LoveLanguageScores(
+                words=p.love_language_words, acts=p.love_language_acts, gifts=p.love_language_gifts,
+                time=p.love_language_time, touch=p.love_language_touch,
+            ),
+            communication_style=p.communication_style,
+            conflict_resolution=p.conflict_resolution,
+            attachment_style=p.attachment_style,
+        )
 
 
 # Interest Schemas
@@ -161,8 +258,7 @@ class InterestResponse(BaseModel):
     name: str
     category: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Match Schemas
@@ -182,8 +278,7 @@ class MatchResponse(BaseModel):
     ai_mediation_started_at: Optional[datetime]
     direct_chat_started_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MatchCreate(BaseModel):
@@ -207,8 +302,7 @@ class AISessionResponse(BaseModel):
     last_activity_at: Optional[datetime]
     completed_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AIQuestionRequest(BaseModel):
@@ -240,12 +334,12 @@ class MessageResponse(BaseModel):
     sender_id: Optional[int]
     message_type: MessageType
     content: str
-    metadata: Optional[Dict[str, Any]]
+    # ORM attribute is Message.message_metadata (DB column "metadata"); serialised as "metadata".
+    metadata: Optional[Dict[str, Any]] = Field(None, validation_alias="message_metadata")
     is_read: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Conversation Schemas
@@ -258,8 +352,7 @@ class ConversationResponse(BaseModel):
     last_message_at: Optional[datetime]
     messages: List[MessageResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # WebSocket Message Schemas

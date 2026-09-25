@@ -3,11 +3,10 @@ Database models for the DateNow application
 """
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, Float, Text,
-    ForeignKey, JSON, Enum as SQLEnum, Table
+    ForeignKey, JSON, Enum as SQLEnum, Table, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from datetime import datetime
 import enum
 from app.database import Base
 
@@ -80,6 +79,9 @@ class User(Base):
     matches_received = relationship("Match", foreign_keys="Match.user2_id", back_populates="user2")
     ai_sessions = relationship("AISession", back_populates="user")
     messages_sent = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
+    onboarding_answers = relationship(
+        "OnboardingAnswer", back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class UserProfile(Base):
@@ -124,7 +126,15 @@ class UserProfile(Base):
 
     # Relationships
     user = relationship("User", back_populates="profile")
-    interests = relationship("Interest", secondary=user_interests, back_populates="users")
+    # user_interests.user_id references users.id (not user_profiles.id), so join explicitly
+    # through user_profiles.user_id.
+    interests = relationship(
+        "Interest",
+        secondary=user_interests,
+        primaryjoin="UserProfile.user_id == foreign(user_interests.c.user_id)",
+        secondaryjoin="Interest.id == foreign(user_interests.c.interest_id)",
+        back_populates="users",
+    )
 
 
 class Interest(Base):
@@ -136,7 +146,13 @@ class Interest(Base):
     category = Column(String(50))  # sports, arts, music, etc.
 
     # Relationships
-    users = relationship("UserProfile", secondary=user_interests, back_populates="interests")
+    users = relationship(
+        "UserProfile",
+        secondary=user_interests,
+        primaryjoin="Interest.id == foreign(user_interests.c.interest_id)",
+        secondaryjoin="UserProfile.user_id == foreign(user_interests.c.user_id)",
+        back_populates="interests",
+    )
 
 
 class PsychologicalProfile(Base):
@@ -180,11 +196,33 @@ class PsychologicalProfile(Base):
     # AI-generated insights
     ai_insights = Column(Text)
 
+    # Server-side scoring provenance (Sprint 1). Null for legacy rows.
+    questionnaire_version = Column(String(32), nullable=True)
+    scored_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     user = relationship("User", back_populates="psychological_profile")
+
+
+class OnboardingAnswer(Base):
+    """One answer to a server-owned onboarding questionnaire question (upserted per user + question)."""
+    __tablename__ = "onboarding_answers"
+    __table_args__ = (
+        UniqueConstraint("user_id", "question_id", name="uq_onboarding_answers_user_question"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    question_id = Column(String(64), nullable=False)
+    value = Column(JSON, nullable=False)
+    questionnaire_version = Column(String(32), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="onboarding_answers")
 
 
 class Match(Base):
@@ -285,7 +323,8 @@ class Message(Base):
     message_type = Column(SQLEnum(MessageType))
 
     content = Column(Text, nullable=False)
-    metadata = Column(JSON)  # Additional message metadata
+    # "metadata" is reserved by SQLAlchemy Declarative: attribute renamed, DB column name unchanged.
+    message_metadata = Column("metadata", JSON)  # Additional message metadata
 
     is_read = Column(Boolean, default=False)
     read_at = Column(DateTime(timezone=True))

@@ -5,16 +5,11 @@ Acts as a professional moderator for conversations between matches
 import google.generativeai as genai
 from typing import Dict, List, Optional, AsyncGenerator
 import asyncio
-from datetime import datetime
 import json
 
 from app.config import settings
-from app.models import Match, User, UserProfile, PsychologicalProfile
+from app.models import Match, User, UserProfile
 from sqlalchemy.orm import Session
-
-
-# Configure Gemini
-genai.configure(api_key=settings.GEMINI_API_KEY)
 
 
 class AIModerator:
@@ -24,11 +19,22 @@ class AIModerator:
     """
 
     def __init__(self):
-        self.model = genai.GenerativeModel('gemini-1.5-pro')
+        self._model = None
+        self._model_name = 'gemini-1.5-pro'
         self.generation_config = {
             'temperature': 0.8,  # Higher for more conversational
             'max_output_tokens': 2048,
         }
+
+    @property
+    def model(self):
+        """Gemini model, configured lazily so importing this module never requires GEMINI_API_KEY."""
+        if self._model is None:
+            if not settings.GEMINI_API_KEY:
+                raise RuntimeError("GEMINI_API_KEY is not configured; AI features are unavailable")
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            self._model = genai.GenerativeModel(self._model_name)
+        return self._model
 
     def _get_moderator_system_prompt(
         self,
@@ -215,7 +221,7 @@ Provide a JSON response with:
                 result_text = result_text.split("```")[1].split("```")[0]
 
             return json.loads(result_text.strip())
-        except:
+        except Exception:
             # Fallback
             return {
                 "updated_compatibility": compatibility_score * 100,

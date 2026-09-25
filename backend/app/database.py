@@ -1,18 +1,23 @@
 """
-Database configuration and session management
+Database configuration and session management.
+
+The schema is managed exclusively by Alembic (`alembic upgrade head`); the app never calls create_all.
 """
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
+
 from app.config import settings
 
+_engine_kwargs = {"echo": settings.DEBUG}
+if settings.ENVIRONMENT == "testing":
+    _engine_kwargs["poolclass"] = NullPool
+if settings.DATABASE_URL.startswith("postgresql"):
+    # Timestamps are serialised as UTC regardless of the server's timezone setting.
+    _engine_kwargs["connect_args"] = {"options": "-c timezone=utc"}
+
 # Create SQLAlchemy engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    poolclass=NullPool if settings.ENVIRONMENT == "testing" else None,
-    echo=settings.DEBUG,
-)
+engine = create_engine(settings.DATABASE_URL, **_engine_kwargs)
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -30,10 +35,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-def init_db():
-    """
-    Initialize database - create all tables
-    """
-    Base.metadata.create_all(bind=engine)

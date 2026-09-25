@@ -1,15 +1,15 @@
 """
 WebSocket routes for real-time AI-moderated conversations
 """
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, status
 from sqlalchemy.orm import Session
 from typing import Optional
-import json
 import asyncio
+import logging
 from datetime import datetime
 
 from app.database import get_db
-from app.models import User, Match, UserProfile, PsychologicalProfile, MatchStatus
+from app.models import User, Match, UserProfile, MatchStatus
 from app.websocket_manager import manager
 from app.ai_moderator import moderator
 from app.conversation_session import (
@@ -18,19 +18,20 @@ from app.conversation_session import (
     MessageType,
     ConversationSession
 )
-from app.auth import decode_token
+from app.auth import ACCESS_TOKEN_TYPE, get_user_for_token
+from app.errors import AppError
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
 
 async def get_user_from_token(token: str, db: Session) -> Optional[User]:
-    """Get user from JWT token"""
+    """Get the active user for an access token, or None if the token/user is not acceptable."""
     try:
-        token_data = decode_token(token)
-        user = db.query(User).filter(User.id == token_data.user_id).first()
-        return user
-    except:
+        return get_user_for_token(db, token, ACCESS_TOKEN_TYPE)
+    except AppError:
         return None
 
 
@@ -70,11 +71,19 @@ async def conversation_websocket(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    # Consent gate: a live session may only be opened once both users have agreed to AI mediation.
+    if match.status != MatchStatus.AI_MEDIATION:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     # Get user profiles
     user_profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
     other_user_id = match.user2_id if match.user1_id == user.id else match.user1_id
     other_user = db.query(User).filter(User.id == other_user_id).first()
     other_profile = db.query(UserProfile).filter(UserProfile.user_id == other_user_id).first()
+    if user_profile is None or other_profile is None:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
 
     # Get or create session
     session = session_manager.get_user_session(user.id)
@@ -385,10 +394,17 @@ async def end_conversation_session(session: ConversationSession, match: Match, d
     session_manager.end_session(session.session_id)
 
 
-# Background task to cleanup expired sessions
-@router.on_event("startup")
-async def cleanup_task():
-    """Periodic cleanup of expired sessions"""
+SESSION_CLEANUP_INTERVAL_SECONDS = 300
+
+
+async def session_cleanup_loop(interval: float = SESSION_CLEANUP_INTERVAL_SECONDS):
+    """Periodic cleanup of expired sessions.
+
+    Started as a background task from the app lifespan (app.main) and cancelled on shutdown.
+    """
     while True:
-        await asyncio.sleep(300)  # Every 5 minutes
-        session_manager.cleanup_expired_sessions()
+        await asyncio.sleep(interval)
+        try:
+            session_manager.cleanup_expired_sessions()
+        except Exception:
+            logger.exception("Session cleanup failed")
