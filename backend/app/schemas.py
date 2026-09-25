@@ -137,6 +137,11 @@ class _ProfileFields(BaseModel):
             raise ValueError(f"age must be at most {MAX_USER_AGE}")
         return v
 
+    @field_validator("first_name", "last_name", "bio", "city", "country", check_fields=False)
+    @classmethod
+    def no_nul(cls, v: Any) -> Any:
+        return _reject_nul(v)
+
     @field_validator("looking_for_gender", check_fields=False)
     @classmethod
     def unique_genders(cls, v: Optional[List[Gender]]) -> Optional[List[Gender]]:
