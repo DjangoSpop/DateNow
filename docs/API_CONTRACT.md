@@ -72,7 +72,7 @@ refresh token is required and vice versa. Sprint 1 tokens are stateless (no serv
     "profile_complete": true,
     "questionnaire_complete": false,
     "questionnaire_answered": 17,
-    "questionnaire_total": 58,
+    "questionnaire_total": 71,
     "questionnaire_version": "ipip-v1",
     "complete": false
   }
@@ -142,7 +142,7 @@ Section/question order is the presentation order.
 **200** `QuestionnaireState`:
 ```json
 { "version": "ipip-v1", "answers": { "bf_1": 4, "comm_1": "direct" },
-  "answered": 2, "total_required": 58, "missing": ["bf_2", "..."], "complete": false, "scored_at": null }
+  "answered": 2, "total_required": 71, "missing": ["bf_2", "..."], "complete": false, "scored_at": null }
 ```
 `complete` = a psychological profile has been computed from the current answers' version.
 
