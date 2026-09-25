@@ -91,11 +91,11 @@ def _s(qid: str, text: str, trait: Optional[str], reverse: bool = False,
 def _c(qid: str, text: str, trait: Optional[str], options: Tuple[Tuple[str, str], ...]) -> Question:
     return Question(
         id=qid, text=text, type=SINGLE_CHOICE, trait=trait,
-        options=tuple(Option(value=v, label=l) for v, l in options),
+        options=tuple(Option(value=value, label=label) for value, label in options),
     )
 
 
-E, A, C, N, O = "extraversion", "agreeableness", "conscientiousness", "neuroticism", "openness"
+E, A, C, N, O = "extraversion", "agreeableness", "conscientiousness", "neuroticism", "openness"  # noqa: E741 - Big Five (OCEAN) initials keep the item table readable
 
 # IPIP 50-item Big-Five Factor Markers (Goldberg, 1992), 44 of the 50 items.
 # reverse=True means the item is minus-keyed for the trait named in ``trait``.

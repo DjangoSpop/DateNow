@@ -1,6 +1,10 @@
 """Model import regressions (B1/B2) and model <-> migration drift."""
+import os
+from pathlib import Path
+
 import pytest
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import MetaData, inspect, text
@@ -11,7 +15,19 @@ from app.database import Base, engine
 from app.models import (
     Interest, Message, MessageType, OnboardingAnswer, PsychologicalProfile, User, UserProfile, user_interests,
 )
-from conftest import alembic_config
+
+def alembic_config() -> Config:
+    """Same config the root conftest migrates with (it sets DATABASE_URL before collection).
+
+    Built here rather than imported from conftest: several conftest.py files exist, and
+    `import conftest` resolves to whichever pytest loaded first.
+    """
+    backend_dir = Path(__file__).resolve().parent.parent
+    cfg = Config(str(backend_dir / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    cfg.attributes["url"] = os.environ["DATABASE_URL"]
+    cfg.attributes["configure_logger"] = False
+    return cfg
 
 
 def test_models_import_and_mappers_configure():
