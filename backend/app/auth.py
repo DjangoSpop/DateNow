@@ -4,6 +4,7 @@ Authentication utilities and dependencies.
 JWT claims: sub (user id as string), type ("access" | "refresh"), iat, exp.
 Access and refresh tokens are not interchangeable.
 """
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -33,6 +34,9 @@ _DUMMY_HASH = pwd_context.hash("dummy-password-for-timing")
 security = HTTPBearer(auto_error=False)
 
 _BEARER = {"WWW-Authenticate": "Bearer"}
+
+# Canonical positive user id as issued by _create_token (ASCII digits, no sign/padding/leading zero).
+_SUB_RE = re.compile(r"[1-9][0-9]{0,17}")
 
 
 def _unauthorized(code: str, message: str) -> AppError:
@@ -86,7 +90,9 @@ def create_token_pair(user_id: int) -> dict:
 def decode_token(token: str, expected_type: str = ACCESS_TOKEN_TYPE) -> TokenData:
     """Decode and validate a JWT. Raises AppError(401 TOKEN_EXPIRED | INVALID_TOKEN)."""
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM], options={"require_exp": True}
+        )
     except ExpiredSignatureError:
         raise _unauthorized("TOKEN_EXPIRED", "Token has expired")
     except JWTError:
@@ -95,7 +101,7 @@ def decode_token(token: str, expected_type: str = ACCESS_TOKEN_TYPE) -> TokenDat
     if payload.get("type") != expected_type:
         raise _unauthorized("INVALID_TOKEN", "Invalid token")
     sub = payload.get("sub")
-    if not isinstance(sub, str) or not sub.isdigit():
+    if not isinstance(sub, str) or not _SUB_RE.fullmatch(sub):
         raise _unauthorized("INVALID_TOKEN", "Invalid token")
     return TokenData(user_id=int(sub))
 
