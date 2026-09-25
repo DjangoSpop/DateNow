@@ -11,7 +11,8 @@
     "lint": "expo lint",
     "test": "jest",
     "doctor": "expo-doctor",
-    "export:check": "expo export --platform ios --platform android --output-dir dist"
+    "export:check": "expo export --platform ios --platform android --output-dir dist",
+    "test:e2e": "jest --testMatch \"<rootDir>/src/__e2e__/**/*.e2e.test.ts\" --runInBand"
   },
   "dependencies": {
     "expo": "~57.0.25",
