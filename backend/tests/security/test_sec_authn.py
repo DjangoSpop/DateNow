@@ -17,7 +17,9 @@ from jose import jwt
 from app.auth import create_refresh_token, get_current_user
 from app.config import settings
 from app.main import app
-from helpers import API, assert_error, auth
+from app.models import Match, MatchStatus
+from helpers import API, assert_error, auth, create_profile, register
+from starlette.websockets import WebSocketDisconnect
 
 # (method, path, json body). Bodies are valid so that only authentication can fail.
 PROTECTED_ENDPOINTS = [
@@ -102,6 +104,8 @@ INVALID_TOKENS = {
     "negative-sub": lambda: _signed(_claims(sub="-1")),
     "non-numeric-sub": lambda: _signed(_claims(sub="admin")),
     "integer-sub": lambda: _signed(_claims(sub=1)),
+    "non-ascii-digit-sub": lambda: _signed(_claims(sub="١")),
+    "no-exp": lambda: _signed({k: v for k, v in _claims().items() if k != "exp"}),
     "huge-token": lambda: "a." + "A" * 100_000 + ".b",
 }
 
@@ -177,3 +181,33 @@ def test_refresh_endpoint_rejects_invalid_tokens(client, token_name):
         token = _signed(claims)
     resp = client.post(f"{API}/auth/refresh", json={"refresh_token": token})
     assert_error(resp, 401, "INVALID_TOKEN")
+
+
+@pytest.fixture
+def mediated_match(client, db):
+    """Users 1 and 2 with profiles and a match in ai_mediation (the only status the WS accepts)."""
+    token_a = register(client, "a@example.com")["access_token"]
+    token_b = register(client, "b@example.com")["access_token"]
+    create_profile(client, token_a, first_name="Alice")
+    create_profile(client, token_b, first_name="Bob", gender="male", looking_for_gender=["female"])
+    match = Match(user1_id=1, user2_id=2, status=MatchStatus.AI_MEDIATION, overall_compatibility=0.8)
+    db.add(match)
+    db.commit()
+    return match.id
+
+
+def _assert_ws_refused(client, url):
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect(url) as ws:
+            ws.receive_json()
+    assert exc.value.code == 1008
+
+
+# huge-token is excluded: the test client itself refuses URLs that long.
+@pytest.mark.parametrize("token_name", [n for n in INVALID_TOKENS if n != "huge-token"])
+def test_websocket_rejects_invalid_tokens(client, mediated_match, token_name):
+    _assert_ws_refused(client, f"/ws/conversation/{mediated_match}?token={INVALID_TOKENS[token_name]()}")
+
+
+def test_websocket_rejects_missing_token(client, mediated_match):
+    _assert_ws_refused(client, f"/ws/conversation/{mediated_match}")
