@@ -71,3 +71,11 @@ coverage/
 .cache/
 .temp/
 tmp/
+
+# mobile
+mobile/.expo/
+mobile/dist/
+mobile/node_modules/
+mobile/expo-env.d.ts
+mobile/ios/
+mobile/android/
