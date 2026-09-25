@@ -1,7 +1,7 @@
 """
 Seed script to populate database with initial data
 """
-from app.database import SessionLocal, init_db
+from app.database import SessionLocal
 from app.models import Interest, AIPromptTemplate
 
 
@@ -117,8 +117,8 @@ def seed_prompt_templates():
 
 
 if __name__ == "__main__":
+    # The schema must already exist: run `alembic upgrade head` first.
     print("🌱 Seeding database...")
-    init_db()
     seed_interests()
     seed_prompt_templates()
     print("✅ Database seeding complete!")

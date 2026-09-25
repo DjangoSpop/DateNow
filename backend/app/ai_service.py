@@ -2,33 +2,38 @@
 AI Service for Gemini API integration and conversation management
 """
 import google.generativeai as genai
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 import json
-from datetime import datetime
 
 from app.config import settings
 from app.models import (
     User, UserProfile, PsychologicalProfile,
-    AISession, Match, Message, MessageType,
-    AIConversationLog
+    AISession, Match, AIConversationLog
 )
 from app.schemas import CompatibilityAnalysis
-
-
-# Configure Gemini API
-genai.configure(api_key=settings.GEMINI_API_KEY)
 
 
 class AIService:
     """Service for AI-powered matchmaking and conversation mediation"""
 
     def __init__(self):
-        self.model = genai.GenerativeModel(settings.AI_MODEL)
+        self._model = None
+        self._model_name = settings.AI_MODEL
         self.generation_config = {
             'temperature': settings.AI_TEMPERATURE,
             'max_output_tokens': settings.AI_MAX_TOKENS,
         }
+
+    @property
+    def model(self):
+        """Gemini model, configured lazily so importing this module never requires GEMINI_API_KEY."""
+        if self._model is None:
+            if not settings.GEMINI_API_KEY:
+                raise RuntimeError("GEMINI_API_KEY is not configured; AI features are unavailable")
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            self._model = genai.GenerativeModel(self._model_name)
+        return self._model
 
     async def analyze_psychological_profile(
         self,
@@ -143,7 +148,7 @@ class AIService:
         # Parse AI response
         try:
             ai_analysis = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
-        except:
+        except Exception:
             ai_analysis = {
                 "strengths": ["Compatible personalities", "Shared values", "Good communication potential"],
                 "challenges": ["May need to work on understanding differences", "Communication styles may vary", "Different backgrounds"],
