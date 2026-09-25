@@ -16,8 +16,6 @@ def test_public_dev_secret_refused_for_any_non_dev_environment_name(monkeypatch,
         make(monkeypatch, ENVIRONMENT=env)
 
 
-@pytest.mark.xfail(strict=True, reason="KNOWN (open): ENVIRONMENT defaults to 'development', so a deployment that "
-                                       "forgets to set it silently signs tokens with the public dev secret")
 def test_missing_environment_does_not_fall_back_to_public_secret(monkeypatch):
     try:
         settings = make(monkeypatch)

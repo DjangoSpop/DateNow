@@ -14,10 +14,20 @@ def make(**kw):
 def test_defaults(monkeypatch):
     for var in ("DEBUG", "GEMINI_API_KEY", "JWT_SECRET_KEY", "ENVIRONMENT"):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "development")
     s = make()
     assert s.DEBUG is False
     assert s.GEMINI_API_KEY is None
-    assert s.JWT_SECRET_KEY == DEV_INSECURE_JWT_SECRET  # dev fallback only
+    assert s.JWT_SECRET_KEY == DEV_INSECURE_JWT_SECRET  # dev fallback only when development is explicit
+
+
+def test_unset_environment_is_production_and_fails_closed(monkeypatch):
+    for var in ("JWT_SECRET_KEY", "ENVIRONMENT"):
+        monkeypatch.delenv(var, raising=False)
+    with pytest.raises(ValueError):
+        make()
+    monkeypatch.setenv("JWT_SECRET_KEY", "a-real-looking-secret-" + "x" * 32)
+    assert make().ENVIRONMENT == "production"
 
 
 @pytest.mark.parametrize("secret", [None, "", "short", "your-super-secret-jwt-key-change-this-in-production",

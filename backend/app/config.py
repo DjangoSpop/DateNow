@@ -35,7 +35,9 @@ class Settings(BaseSettings):
     # API Settings
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "DateNow"
-    ENVIRONMENT: str = "development"
+    # Fail closed: an unset ENVIRONMENT is production, which refuses weak/missing JWT secrets.
+    # Local dev, tests and docker-compose set ENVIRONMENT=development/testing explicitly.
+    ENVIRONMENT: str = "production"
     DEBUG: bool = False
 
     # Database
