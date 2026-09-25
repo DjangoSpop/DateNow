@@ -15,6 +15,13 @@ from app.models import (
 )
 
 
+def _reject_nul(v: Any) -> Any:
+    """NUL characters are rejected by bcrypt and by PostgreSQL text columns (they would surface as a 500)."""
+    if isinstance(v, str) and "\x00" in v:
+        raise ValueError("must not contain NUL characters")
+    return v
+
+
 # Authentication Schemas
 class UserRegister(BaseModel):
     """Extra fields (e.g. legacy first_name/last_name) are ignored."""
@@ -26,6 +33,11 @@ class UserRegister(BaseModel):
     def normalize_email(cls, v: Any) -> Any:
         return v.strip().lower() if isinstance(v, str) else v
 
+    @field_validator("password")
+    @classmethod
+    def no_nul(cls, v: str) -> str:
+        return _reject_nul(v)
+
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -35,6 +47,11 @@ class UserLogin(BaseModel):
     @classmethod
     def normalize_email(cls, v: Any) -> Any:
         return v.strip().lower() if isinstance(v, str) else v
+
+    @field_validator("password")
+    @classmethod
+    def no_nul(cls, v: str) -> str:
+        return _reject_nul(v)
 
 
 class RefreshRequest(BaseModel):
