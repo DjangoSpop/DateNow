@@ -29,13 +29,18 @@ def onboarding_status(db: Session, user: User) -> dict:
     profile_complete = db.scalar(
         select(func.count()).select_from(UserProfile).where(UserProfile.user_id == user.id)
     ) > 0
+    version, total = questionnaire_meta()
+    # Only answers/scores for the current questionnaire version count: a new bank version means re-onboarding.
     questionnaire_complete = db.scalar(
-        select(func.count()).select_from(PsychologicalProfile).where(PsychologicalProfile.user_id == user.id)
+        select(func.count()).select_from(PsychologicalProfile).where(
+            PsychologicalProfile.user_id == user.id, PsychologicalProfile.questionnaire_version == version
+        )
     ) > 0
     answered = db.scalar(
-        select(func.count()).select_from(OnboardingAnswer).where(OnboardingAnswer.user_id == user.id)
+        select(func.count()).select_from(OnboardingAnswer).where(
+            OnboardingAnswer.user_id == user.id, OnboardingAnswer.questionnaire_version == version
+        )
     )
-    version, total = questionnaire_meta()
     return {
         "profile_complete": profile_complete,
         "questionnaire_complete": questionnaire_complete,

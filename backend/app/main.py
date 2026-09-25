@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.errors import register_exception_handlers
-from app.routes import auth, users, matches, websocket
+from app.routes import auth, matches, questionnaire, users, websocket
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
+app.include_router(questionnaire.router, prefix=settings.API_V1_STR)
 app.include_router(matches.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)  # WebSocket routes (no prefix needed)
 
