@@ -69,6 +69,22 @@ DateNow is a revolutionary dating platform that uses AI to facilitate meaningful
 - **Authentication**: JWT
 - **Deployment**: Docker + Docker Compose
 
+## 📍 Current Status (Sprint 1)
+
+The working vertical slice is **mobile app → FastAPI → PostgreSQL**:
+register/login, secure session restore, profile, and server-scored onboarding.
+See [`docs/SPRINT_1_REPORT.md`](docs/SPRINT_1_REPORT.md) and the API contract in
+[`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
+
+| Directory | What | Checks |
+|---|---|---|
+| `backend/` | FastAPI API, Alembic migrations | `pytest` (see `backend/README_TESTING.md`) |
+| `mobile/` | Expo / React Native app (primary client) | `npm run typecheck && npm run lint && npm test` (see `mobile/README.md`) |
+| `frontend/` | React/Vite web client (design & product reference) | `npx tsc --noEmit && npx vite build` |
+
+Matching, AI-moderated sessions and real-time chat are prototype code, scheduled for
+Sprints 3–4.
+
 ## 📦 Installation
 
 ### Prerequisites

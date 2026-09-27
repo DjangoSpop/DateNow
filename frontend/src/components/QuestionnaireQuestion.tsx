@@ -12,7 +12,6 @@ interface Props {
 }
 
 export default function QuestionnaireQuestion({ question, answer, onAnswer, gender }: Props) {
-  const accentColor = gender === 'female' ? 'accent' : 'primary';
 
   return (
     <motion.div

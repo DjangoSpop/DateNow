@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, Send, Heart, X, Check, Clock, Users } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
+import { tokenStorage } from '../lib/api';
 
 interface Message {
   id: string;
@@ -29,7 +29,7 @@ interface SessionState {
 export default function RealTimeConversationPage() {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const accessToken = localStorage.getItem('access_token');
+  const accessToken = tokenStorage.getAccessToken();
 
   // WebSocket
   const ws = useRef<WebSocket | null>(null);
@@ -49,7 +49,7 @@ export default function RealTimeConversationPage() {
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Scroll to bottom
   const scrollToBottom = () => {

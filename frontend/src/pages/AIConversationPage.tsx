@@ -2,11 +2,10 @@
  * AI Conversation Page - AI-mediated conversation interface
  */
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Bot, Send, ArrowLeft, Sparkles } from 'lucide-react';
 
 export default function AIConversationPage() {
-  const { matchId } = useParams();
   const [currentQuestion, setCurrentQuestion] = useState(
     "Let's start with something light - what's a perfect weekend look like for you?"
   );

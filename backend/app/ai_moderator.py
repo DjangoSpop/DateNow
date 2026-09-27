@@ -13,8 +13,8 @@ from app.models import Match, User, UserProfile, PsychologicalProfile
 from sqlalchemy.orm import Session
 
 
-# Configure Gemini
-genai.configure(api_key=settings.GEMINI_API_KEY)
+# Gemini is configured lazily (see AIModerator.model) so this module imports
+# cleanly without GEMINI_API_KEY.
 
 
 class AIModerator:
@@ -24,11 +24,20 @@ class AIModerator:
     """
 
     def __init__(self):
-        self.model = genai.GenerativeModel('gemini-1.5-pro')
+        self._model = None
         self.generation_config = {
             'temperature': 0.8,  # Higher for more conversational
             'max_output_tokens': 2048,
         }
+
+    @property
+    def model(self):
+        if self._model is None:
+            if not settings.GEMINI_API_KEY:
+                raise RuntimeError("AI moderator unavailable: GEMINI_API_KEY is not set")
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            self._model = genai.GenerativeModel('gemini-1.5-pro')
+        return self._model
 
     def _get_moderator_system_prompt(
         self,
