@@ -198,7 +198,7 @@ export default function ProfileSetupScreen() {
           value={values.bio}
           onChangeText={(t) => update('bio', t)}
           multiline
-          maxLength={500}
+          maxLength={1000}
           placeholder="What should someone know about you?"
           error={errors.bio}
         />

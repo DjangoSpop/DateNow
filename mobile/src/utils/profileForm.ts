@@ -109,15 +109,15 @@ export function validateProfileForm(values: ProfileFormValues, today: Date = new
   }
 
   const dist = parseIntStrict(values.distance_preference_km);
-  if (dist === null || dist < 1) errors.distance_preference_km = 'Enter a distance in km.';
+  if (dist === null || dist < 1 || dist > 500) errors.distance_preference_km = 'Enter a distance between 1 and 500 km.';
 
   if (!values.relationship_goal) errors.relationship_goal = 'Please choose one.';
 
   if (values.height_cm.trim()) {
     const h = parseIntStrict(values.height_cm);
-    if (h === null || h < 100 || h > 250) errors.height_cm = 'Enter your height in cm (100–250).';
+    if (h === null || h < 50 || h > 300) errors.height_cm = 'Enter your height in cm (50–300).';
   }
-  if (values.bio.length > 500) errors.bio = 'Please keep your bio under 500 characters.';
+  if (values.bio.length > 1000) errors.bio = 'Please keep your bio under 1000 characters.';
   return errors;
 }
 
