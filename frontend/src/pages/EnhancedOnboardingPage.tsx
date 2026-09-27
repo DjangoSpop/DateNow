@@ -6,11 +6,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  User, Heart, Brain, MessageCircle, Target, Sparkles,
+  User, Heart, Brain, Sparkles,
   CheckCircle, Camera, MapPin, Calendar
 } from 'lucide-react';
 import QuestionnaireQuestion from '../components/QuestionnaireQuestion';
-import { questionSections, calculateTraitScore, allQuestions } from '../data/questionnaireData';
+import { questionSections } from '../data/questionnaireData';
 
 type Step = 'welcome' | 'basic-info' | 'photos' | 'questionnaire' | 'interests' | 'complete';
 
@@ -37,9 +37,6 @@ export default function EnhancedOnboardingPage() {
   const [questionnaireAnswers, setQuestionnaireAnswers] = useState<Record<string, any>>({});
   const [currentSection, setCurrentSection] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-
-  const accentColor = gender === 'female' ? 'accent' : 'primary';
 
   // Progress calculation
   const totalSteps = 6;

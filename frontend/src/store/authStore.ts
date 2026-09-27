@@ -2,80 +2,50 @@
  * Authentication state management
  */
 import { create } from 'zustand';
-import { authApi } from '../lib/api';
+import { authApi, tokenStorage } from '../lib/api';
 
 interface AuthState {
   isAuthenticated: boolean;
-  accessToken: string | null;
-  refreshToken: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, firstName: string, lastName?: string) => Promise<void>;
   logout: () => void;
-  initialize: () => void;
+  initialize: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
-  accessToken: null,
-  refreshToken: null,
 
-  initialize: () => {
-    const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (accessToken && refreshToken) {
-      set({ isAuthenticated: true, accessToken, refreshToken });
+  initialize: async () => {
+    if (!tokenStorage.getAccessToken()) return;
+    // Validate the stored session with the server instead of trusting token presence.
+    try {
+      await authApi.me();
+      set({ isAuthenticated: true });
+    } catch {
+      tokenStorage.clear();
+      set({ isAuthenticated: false });
     }
   },
 
   login: async (email: string, password: string) => {
-    try {
-      const response = await authApi.login({ email, password });
-      const { access_token, refresh_token } = response.data;
-
-      localStorage.setItem('access_token', access_token);
-      localStorage.setItem('refresh_token', refresh_token);
-
-      set({
-        isAuthenticated: true,
-        accessToken: access_token,
-        refreshToken: refresh_token,
-      });
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
-    }
+    const response = await authApi.login({ email, password });
+    tokenStorage.set(response.data);
+    set({ isAuthenticated: true });
   },
 
   register: async (email: string, password: string, firstName: string, lastName?: string) => {
-    try {
-      const response = await authApi.register({
-        email,
-        password,
-        first_name: firstName,
-        last_name: lastName,
-      });
-      const { access_token, refresh_token } = response.data;
-
-      localStorage.setItem('access_token', access_token);
-      localStorage.setItem('refresh_token', refresh_token);
-
-      set({
-        isAuthenticated: true,
-        accessToken: access_token,
-        refreshToken: refresh_token,
-      });
-    } catch (error) {
-      console.error('Registration failed:', error);
-      throw error;
-    }
+    const response = await authApi.register({
+      email,
+      password,
+      first_name: firstName,
+      last_name: lastName,
+    });
+    tokenStorage.set(response.data);
+    set({ isAuthenticated: true });
   },
 
   logout: () => {
     authApi.logout();
-    set({
-      isAuthenticated: false,
-      accessToken: null,
-      refreshToken: null,
-    });
+    set({ isAuthenticated: false });
   },
 }));
