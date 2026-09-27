@@ -145,11 +145,11 @@ async def get_match(
             detail="Match not found"
         )
 
-    # Verify user is part of this match
+    # Verify user is part of this match (404, not 403: don't reveal that it exists)
     if match.user1_id != current_user.id and match.user2_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to view this match"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Match not found"
         )
 
     return match
@@ -171,11 +171,11 @@ async def match_action(
             detail="Match not found"
         )
 
-    # Verify user is part of this match
+    # Verify user is part of this match (404, not 403: don't reveal that it exists)
     if match.user1_id != current_user.id and match.user2_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Match not found"
         )
 
     # Update user interest
@@ -192,8 +192,13 @@ async def match_action(
             match.user2_interested = False
             match.status = MatchStatus.REJECTED
 
-    # If both users accept, start AI mediation
-    if match.user1_interested and match.user2_interested:
+    # If both users accept, start AI mediation (only once, from PENDING;
+    # otherwise repeated 'accept' calls would create duplicate AI sessions)
+    if (
+        match.user1_interested
+        and match.user2_interested
+        and match.status == MatchStatus.PENDING
+    ):
         match.status = MatchStatus.AI_MEDIATION
         match.ai_mediation_started_at = datetime.utcnow()
 
