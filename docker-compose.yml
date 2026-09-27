@@ -44,8 +44,8 @@ services:
     environment:
       DATABASE_URL: postgresql://datenow:datenow123@postgres:5432/datenow
       REDIS_URL: redis://redis:6379
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
       ENVIRONMENT: development
     volumes:
       - ./backend:/app

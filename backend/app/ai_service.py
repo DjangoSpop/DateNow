@@ -1,7 +1,7 @@
 """
 AI Service for Gemini API integration and conversation management
 """
-import google.generativeai as genai
+import google.generativeai as genai  # configured lazily in AIService.model
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 import json
@@ -16,19 +16,41 @@ from app.models import (
 from app.schemas import CompatibilityAnalysis
 
 
-# Configure Gemini API
-genai.configure(api_key=settings.GEMINI_API_KEY)
-
-
 class AIService:
-    """Service for AI-powered matchmaking and conversation mediation"""
+    """Service for AI-powered matchmaking and conversation mediation.
+
+    The Gemini client is configured lazily on first use, and only when
+    GEMINI_API_KEY is set. Without a key every AI call returns None (or the
+    method's non-AI fallback) instead of failing.
+    """
 
     def __init__(self):
-        self.model = genai.GenerativeModel(settings.AI_MODEL)
+        self._model = None
         self.generation_config = {
             'temperature': settings.AI_TEMPERATURE,
             'max_output_tokens': settings.AI_MAX_TOKENS,
         }
+
+    @property
+    def enabled(self) -> bool:
+        return bool(settings.GEMINI_API_KEY)
+
+    @property
+    def model(self):
+        if not self.enabled:
+            return None
+        if self._model is None:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            self._model = genai.GenerativeModel(settings.AI_MODEL)
+        return self._model
+
+    def _generate_text(self, prompt: str) -> Optional[str]:
+        """Return generated text, or None when AI is not configured."""
+        model = self.model
+        if model is None:
+            return None
+        response = model.generate_content(prompt, generation_config=self.generation_config)
+        return response.text
 
     async def analyze_psychological_profile(
         self,
@@ -74,8 +96,7 @@ class AIService:
         5. What they might value in a partner
         """
 
-        response = self.model.generate_content(prompt, generation_config=self.generation_config)
-        return response.text
+        return self._generate_text(prompt)
 
     async def calculate_compatibility(
         self,
@@ -138,11 +159,11 @@ class AIService:
         Format as JSON with keys: strengths (array), challenges (array), recommendation (string)
         """
 
-        response = self.model.generate_content(prompt, generation_config=self.generation_config)
+        response_text = self._generate_text(prompt)
 
         # Parse AI response
         try:
-            ai_analysis = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
+            ai_analysis = json.loads(response_text.strip().replace('```json', '').replace('```', ''))
         except:
             ai_analysis = {
                 "strengths": ["Compatible personalities", "Shared values", "Good communication potential"],
@@ -297,8 +318,10 @@ class AIService:
         Question {session.questions_asked + 1} of {settings.AI_QUESTIONS_PER_SESSION}:
         """
 
-        response = self.model.generate_content(prompt, generation_config=self.generation_config)
-        question = response.text.strip()
+        response_text = self._generate_text(prompt)
+        if response_text is None:
+            return None
+        question = response_text.strip()
 
         # Log the interaction
         log = AIConversationLog(
@@ -347,8 +370,8 @@ class AIService:
         Keep it professional and constructive.
         """
 
-        response = self.model.generate_content(prompt, generation_config=self.generation_config)
-        return response.text.strip()
+        response_text = self._generate_text(prompt)
+        return response_text.strip() if response_text is not None else None
 
     async def generate_compatibility_report(
         self,
@@ -389,8 +412,8 @@ class AIService:
         Be honest but constructive. Format as a warm, professional report.
         """
 
-        response = self.model.generate_content(prompt, generation_config=self.generation_config)
-        return response.text.strip()
+        response_text = self._generate_text(prompt)
+        return response_text.strip() if response_text is not None else None
 
     async def generate_conversation_starter(
         self,
@@ -427,8 +450,8 @@ class AIService:
         Keep it brief (2-3 sentences).
         """
 
-        response = self.model.generate_content(prompt, generation_config=self.generation_config)
-        return response.text.strip()
+        response_text = self._generate_text(prompt)
+        return response_text.strip() if response_text is not None else None
 
 
 # Global AI service instance
