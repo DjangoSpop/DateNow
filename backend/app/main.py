@@ -7,8 +7,11 @@ does not create tables on startup.
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.routes import auth, users, onboarding, matches, websocket
@@ -47,6 +50,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 422 responses keep FastAPI's shape but never echo the submitted value back
+# (it may be a password or other personal data that ends up in client logs).
+_VALIDATION_ERROR_KEYS = ("loc", "msg", "type")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = [{k: e[k] for k in _VALIDATION_ERROR_KEYS if k in e} for e in exc.errors()]
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": jsonable_encoder(errors)},
+    )
+
 
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR)
