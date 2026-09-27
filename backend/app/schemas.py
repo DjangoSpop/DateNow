@@ -359,3 +359,29 @@ class QuestionnaireResponse(BaseModel):
 
 class QuestionnaireSubmit(BaseModel):
     responses: List[QuestionnaireResponse]
+
+
+# Onboarding / Questionnaire Schemas
+# Answers are validated against the server-side catalog in the route layer
+# (app.questionnaire_catalog); these schemas only fix the envelope shape.
+class OnboardingDraftUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_section: Optional[str] = Field(None, max_length=50)
+    # A null value removes a previously saved answer.
+    answers: Dict[str, Any] = Field(default_factory=dict)
+
+
+class OnboardingStateResponse(BaseModel):
+    status: OnboardingStatus
+    current_section: Optional[str] = None
+    answers: Dict[str, Any] = Field(default_factory=dict)
+    questionnaire_version: Optional[str] = None
+    updated_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
+class QuestionnaireSubmitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    answers: Dict[str, Any] = Field(default_factory=dict)

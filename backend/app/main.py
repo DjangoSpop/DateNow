@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routes import auth, users, matches, websocket
+from app.routes import auth, users, onboarding, matches, websocket
 
 logger = logging.getLogger("datenow")
 
@@ -51,6 +51,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
+app.include_router(onboarding.router, prefix=settings.API_V1_STR)
 app.include_router(matches.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)  # WebSocket routes (no prefix needed)
 
