@@ -86,7 +86,7 @@ Server-controlled fields (`id`, `user_id`, `is_profile_complete`, `photos`, `pro
 `created_at`, `updated_at`, lat/long) are **ignored/rejected** if sent (`extra="forbid"` → 422).
 
 ### `PATCH /users/me/profile` → 200 `Profile` | 404
-Any subset of the create fields except `date_of_birth` and `gender`… (actually: all create fields optional; same validation).
+All create fields optional; the same validation applies to fields that are sent, and the merged result must still satisfy the cross-field rules (18+, min ≤ max). `extra="forbid"`.
 
 `Profile` response = create fields + `id`, `user_id`, `is_profile_complete`, `photos`, `profile_photo_url`, `created_at`, `updated_at`.
 Latitude/longitude are never returned.
